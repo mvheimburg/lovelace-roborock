@@ -46,7 +46,7 @@ cleaning based on a guessed map. Room cleaning uses HA's public, map-qualified
 `vacuum.clean_segments` action. The companion supplies calibrated map geometry
 and its authenticated map image. Its advanced settings and geometry tools remain
 subject to real model/firmware support. Advanced physical map writes are disabled
-in companion 0.1.0 until an exact model/firmware profile has been verified; the
+until an exact model/firmware profile has been verified; the
 first release does not provide full LocalRock configuration parity.
 
 Sensor buttons open the bundled recorder history with 6 h, 24 h and 7 d ranges,
