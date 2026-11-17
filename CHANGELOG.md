@@ -6,3 +6,5 @@
 - Add a map surface and a link to the companion's desktop/tablet configuration panel.
 - Support English/Bokmål, regional formatting, default/Bubble and recorder history.
 - Keep standard controls usable without the companion and block duplicate/unavailable actions.
+- Use map-qualified public room cleaning, expose official dock buttons and Locate, and preserve pending-action safety across reconnects.
+- Honor the actual Home Assistant numeric-format preference values.

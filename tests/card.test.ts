@@ -95,3 +95,110 @@ describe("everyday card", () => {
     ).toContain("failed");
   });
 });
+
+it("re-enables a detached card after its obsolete pending request settles", async () => {
+  const h = base();
+  let finish!: () => void;
+  h.callService = () => new Promise<void>((r) => (finish = r));
+  const c = await mount(h);
+  (
+    c.shadowRoot!.querySelector('[data-action="start"]') as HTMLButtonElement
+  ).click();
+  c.remove();
+  finish();
+  await Promise.resolve();
+  document.body.append(c);
+  await c.updateComplete;
+  expect(
+    (c.shadowRoot!.querySelector('[data-action="start"]') as HTMLButtonElement)
+      .disabled,
+  ).toBe(false);
+});
+
+it("qualifies room cleaning with its floor and exposes official button actions", async () => {
+  const h = base(),
+    calls: unknown[] = [];
+  h.states["vacuum.robot"].attributes.supported_features = 512;
+  h.callService = async (...args) => {
+    calls.push(args);
+  };
+  h.states["button.robot_empty"] = {
+    entity_id: "button.robot_empty",
+    state: "unknown",
+    attributes: { friendly_name: "Empty bin" },
+  };
+  h.callWS = async <T>(m: Record<string, unknown>) => {
+    if (m.type === "call_service")
+      return {
+        response: {
+          "vacuum.robot": {
+            maps: [{ flag: 0, name: "Floor", rooms: { 16: "Room A" } }],
+          },
+        },
+      } as T;
+    throw Error("unknown_command");
+  };
+  const c = await mount(h);
+  c.setConfig({
+    type: "custom:roborock-card",
+    entity: "vacuum.robot",
+    entities: ["button.robot_empty"],
+  });
+  await new Promise((r) => setTimeout(r, 40));
+  await c.updateComplete;
+  const room = [...c.shadowRoot!.querySelectorAll("button")].find(
+    (e) => e.textContent?.trim() === "Room A",
+  )!;
+  room.click();
+  await c.updateComplete;
+  (
+    [...c.shadowRoot!.querySelectorAll("button")].find((e) =>
+      e.textContent?.includes("Clean selected"),
+    ) as HTMLButtonElement
+  ).click();
+  await new Promise((r) => setTimeout(r, 10));
+  expect(calls).toContainEqual([
+    "vacuum",
+    "clean_segments",
+    { entity_id: "vacuum.robot", segment_ids: ["0_16"] },
+  ]);
+  (
+    [...c.shadowRoot!.querySelectorAll("button")].find(
+      (e) => e.textContent?.trim() === "Empty bin",
+    ) as HTMLButtonElement
+  ).click();
+  await new Promise((r) => setTimeout(r, 10));
+  expect(calls).toContainEqual([
+    "button",
+    "press",
+    { entity_id: "button.robot_empty" },
+  ]);
+  expect(
+    [...c.shadowRoot!.querySelectorAll("button")].some(
+      (e) => e.textContent?.trim() === "Find robot",
+    ),
+  ).toBe(true);
+});
+
+it("does not duplicate an unfinished request after reattaching the same card", async () => {
+  const h = base();
+  let finish!: () => void;
+  let calls = 0;
+  h.callService = () => {
+    calls++;
+    return new Promise<void>((r) => (finish = r));
+  };
+  const c = await mount(h);
+  (
+    c.shadowRoot!.querySelector('[data-action="start"]') as HTMLButtonElement
+  ).click();
+  c.remove();
+  document.body.append(c);
+  await c.updateComplete;
+  (
+    c.shadowRoot!.querySelector('[data-action="start"]') as HTMLButtonElement
+  ).click();
+  expect(calls).toBe(1);
+  finish();
+  await Promise.resolve();
+});

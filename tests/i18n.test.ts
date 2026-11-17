@@ -17,16 +17,20 @@ it("supports aliases independently from regional formatting and tolerates malfor
   );
 });
 
-it("honors HA number and clock preferences without changing language", () => {
-  const h = {
-    language: "en-GB",
-    locale: {
-      language: "en-GB",
-      number_format: "comma_decimal",
-      time_format: "12",
-    },
-    config: { time_zone: "UTC" },
-  } as Hass;
-  expect(number(h, 1234.5)).toBe("1.234,5");
-  expect(language(h)).toBe("en");
-});
+it.each([
+  ["comma_decimal", "1,234.5"],
+  ["decimal_comma", "1.234,5"],
+  ["space_comma", "1\u202f234,5"],
+  ["quote_decimal", "1'234.5"],
+  ["none", "1234.5"],
+])(
+  "honors HA %s number preference without changing language",
+  (preference, expected) => {
+    const h = {
+      language: "nb-NO",
+      locale: { language: "nb-NO", number_format: preference },
+    } as Hass;
+    expect(number(h, 1234.5).replaceAll("\u2019", "'")).toBe(expected);
+    expect(language(h)).toBe("nb");
+  },
+);

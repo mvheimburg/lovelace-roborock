@@ -1168,6 +1168,8 @@ const en = {
     failed: "The request failed. Check the connection and try again.",
     pending: "Waiting for Home Assistant…",
     confirmed: "Changes confirmed",
+    remaining: "Still unsaved:",
+    reconciled: "Current state reloaded. Review the draft before saving.",
     unconfirmed: "Request sent; the robot has not confirmed the change. Refresh before trying again.",
     settings: "Robot and dock",
     rooms: "Rooms",
@@ -1293,6 +1295,8 @@ const nb = {
     failed: "Forespørselen mislyktes. Kontroller forbindelsen og prøv igjen.",
     pending: "Venter på Home Assistant…",
     confirmed: "Endringene er bekreftet",
+    remaining: "Ikke lagret:",
+    reconciled: "Gjeldende tilstand er hentet. Kontroller utkastet før du lagrer.",
     unconfirmed: "Forespørselen er sendt, men roboten har ikke bekreftet endringen. Oppdater før du prøver igjen.",
     settings: "Robot og dokk",
     rooms: "Rom",
@@ -1430,15 +1434,17 @@ function number(hass, value, digits = 1) {
     if (!Number.isFinite(value))
         return strings(hass).unknown;
     const preference = hass?.locale?.number_format;
-    const target = preference === "comma_decimal"
+    const target = preference === "decimal_comma"
         ? "de"
-        : preference === "decimal_period"
+        : preference === "comma_decimal" || preference === "none"
             ? "en-US"
-            : preference === "space_comma"
-                ? "fr"
-                : preference === "system"
-                    ? undefined
-                    : locale(hass);
+            : preference === "quote_decimal"
+                ? "de-CH"
+                : preference === "space_comma"
+                    ? "fr"
+                    : preference === "system"
+                        ? undefined
+                        : locale(hass);
     return new Intl.NumberFormat(target, {
         useGrouping: preference !== "none",
         maximumFractionDigits: digits,
@@ -2223,6 +2229,7 @@ class RoborockCard extends i$1 {
             this.related = [];
             this.selected = [];
             this.pending = false;
+            this.activeAction = undefined;
             this.error = "";
             this.history.reset();
         }
@@ -2327,6 +2334,8 @@ class RoborockCard extends i$1 {
         if (this.pending || !this.available || !this.ha)
             return;
         const epoch = this.epoch;
+        const action = Symbol();
+        this.activeAction = action;
         this.pending = true;
         this.error = "";
         try {
@@ -2337,7 +2346,8 @@ class RoborockCard extends i$1 {
                 this.error = strings(this.ha).failed;
         }
         finally {
-            if (epoch === this.epoch) {
+            if (this.activeAction === action) {
+                this.activeAction = undefined;
                 this.pending = false;
                 this.requestUpdate();
             }
@@ -2346,10 +2356,9 @@ class RoborockCard extends i$1 {
     async cleanRooms() {
         if (!this.map || !this.selected.length || !this.config)
             return;
-        await this.action("vacuum", "send_command", {
+        await this.action("vacuum", "clean_segments", {
             entity_id: this.config.entity,
-            command: "app_segment_clean",
-            params: [{ segments: [...this.selected], repeat: 1 }],
+            segment_ids: this.selected.map((id) => `${this.map.id}_${id}`),
         });
     }
     sources() {
@@ -2426,7 +2435,9 @@ class RoborockCard extends i$1 {
         const state = this.available
             ? t[robot.state] || robot.state
             : t.unavailable;
-        const controls = this.entities.filter((e) => e.entity_id.startsWith("select.") || e.entity_id.startsWith("switch."));
+        const controls = this.entities.filter((e) => e.entity_id.startsWith("select.") ||
+            e.entity_id.startsWith("switch.") ||
+            e.entity_id.startsWith("button."));
         return b `<ha-card
         ><header>
           <div>
@@ -2470,6 +2481,7 @@ class RoborockCard extends i$1 {
           >
             ${t.stop}
           </button>
+          ${Number(robot?.attributes.supported_features || 0) & 512 ? b `<button type="button" ?disabled=${disabled} @click=${() => void this.action("vacuum", "locate", { entity_id: this.config.entity })}>${t.locate}</button>` : A}
         </div>
         ${Array.isArray(robot?.attributes.fan_speed_list)
             ? b `<label
@@ -2491,14 +2503,22 @@ class RoborockCard extends i$1 {
                   ${(e.attributes.options || []).map((value) => b `<option value=${value}>${optionLabel(this.ha, value)}</option>`)}
                 </select></label
               >`
-            : b `<button
-                type="button"
-                aria-pressed=${String(e.state === "on")}
-                ?disabled=${disabled || ["unknown", "unavailable"].includes(e.state)}
-                @click=${() => void this.action("switch", e.state === "on" ? "turn_off" : "turn_on", { entity_id: e.entity_id })}
-              >
-                ${String(e.attributes.friendly_name || e.entity_id)}
-              </button>`)}${this.config.show_maintenance !== false
+            : e.entity_id.startsWith("button.")
+                ? b `<button
+                  type="button"
+                  ?disabled=${disabled || e.state === "unavailable"}
+                  @click=${() => void this.action("button", "press", { entity_id: e.entity_id })}
+                >
+                  ${String(e.attributes.friendly_name || e.entity_id)}
+                </button>`
+                : b `<button
+                  type="button"
+                  aria-pressed=${String(e.state === "on")}
+                  ?disabled=${disabled || ["unknown", "unavailable"].includes(e.state)}
+                  @click=${() => void this.action("switch", e.state === "on" ? "turn_off" : "turn_on", { entity_id: e.entity_id })}
+                >
+                  ${String(e.attributes.friendly_name || e.entity_id)}
+                </button>`)}${this.config.show_maintenance !== false
             ? b `<div class="measurements section">
                 ${this.sources().map((source) => {
                 const e = this.ha.states[source.entityId];

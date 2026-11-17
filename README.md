@@ -34,16 +34,20 @@ cached values after the robot changes or goes unavailable.
 
 ## Everyday use and configuration
 
-Start, pause, stop, dock, choose rooms and change the existing suction/mop/dock
+Start, pause, stop, dock, locate (when supported), use enabled dock buttons,
+choose rooms and change the existing suction/mop/dock
 controls. Services retain their original numeric/enum values. A top-right 44px
 cog opens the companion's large **Roborock** configuration panel; when the
 companion is absent it opens the official integration's settings instead.
 
 Without the companion, room information uses the public `roborock.get_maps`
 action. Multiple floors without a verified active floor do not enable room
-cleaning based on a guessed map. The companion supplies calibrated map geometry
+cleaning based on a guessed map. Room cleaning uses HA's public, map-qualified
+`vacuum.clean_segments` action. The companion supplies calibrated map geometry
 and its authenticated map image. Its advanced settings and geometry tools remain
-subject to real model/firmware support.
+subject to real model/firmware support. Advanced physical map writes are disabled
+in companion 0.1.0 until an exact model/firmware profile has been verified; the
+first release does not provide full LocalRock configuration parity.
 
 Sensor buttons open the bundled recorder history with 6 h, 24 h and 7 d ranges,
 related readings/units, pointer/keyboard inspection, gaps and legend more-info.

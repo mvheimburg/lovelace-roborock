@@ -40,6 +40,7 @@ export class RoborockCard extends LitElement {
   private related: string[] = [];
   private selected: number[] = [];
   private pending = false;
+  private activeAction?: symbol;
   private error = "";
   private epoch = 0;
   private unsubscribe?: () => void;
@@ -86,6 +87,7 @@ export class RoborockCard extends LitElement {
       this.related = [];
       this.selected = [];
       this.pending = false;
+      this.activeAction = undefined;
       this.error = "";
       this.history.reset();
     }
@@ -194,6 +196,8 @@ export class RoborockCard extends LitElement {
   ) {
     if (this.pending || !this.available || !this.ha) return;
     const epoch = this.epoch;
+    const action = Symbol();
+    this.activeAction = action;
     this.pending = true;
     this.error = "";
     try {
@@ -201,7 +205,8 @@ export class RoborockCard extends LitElement {
     } catch {
       if (epoch === this.epoch) this.error = strings(this.ha).failed;
     } finally {
-      if (epoch === this.epoch) {
+      if (this.activeAction === action) {
+        this.activeAction = undefined;
         this.pending = false;
         this.requestUpdate();
       }
@@ -209,10 +214,9 @@ export class RoborockCard extends LitElement {
   }
   private async cleanRooms() {
     if (!this.map || !this.selected.length || !this.config) return;
-    await this.action("vacuum", "send_command", {
+    await this.action("vacuum", "clean_segments", {
       entity_id: this.config.entity,
-      command: "app_segment_clean",
-      params: [{ segments: [...this.selected], repeat: 1 }],
+      segment_ids: this.selected.map((id) => `${this.map!.id}_${id}`),
     });
   }
   private sources(): (Source & { name: string })[] {
@@ -327,7 +331,9 @@ export class RoborockCard extends LitElement {
       : t.unavailable;
     const controls = this.entities.filter(
       (e) =>
-        e.entity_id.startsWith("select.") || e.entity_id.startsWith("switch."),
+        e.entity_id.startsWith("select.") ||
+        e.entity_id.startsWith("switch.") ||
+        e.entity_id.startsWith("button."),
     );
     return html`<ha-card
         ><header>
@@ -372,6 +378,7 @@ export class RoborockCard extends LitElement {
           >
             ${t.stop}
           </button>
+          ${Number(robot?.attributes.supported_features || 0) & 512 ? html`<button type="button" ?disabled=${disabled} @click=${() => void this.action("vacuum", "locate", { entity_id: this.config!.entity })}>${t.locate}</button>` : nothing}
         </div>
         ${
           Array.isArray(robot?.attributes.fan_speed_list)
@@ -396,14 +403,22 @@ export class RoborockCard extends LitElement {
                   ${((e.attributes.options as string[]) || []).map((value) => html`<option value=${value}>${optionLabel(this.ha, value)}</option>`)}
                 </select></label
               >`
-            : html`<button
-                type="button"
-                aria-pressed=${String(e.state === "on")}
-                ?disabled=${disabled || ["unknown", "unavailable"].includes(e.state)}
-                @click=${() => void this.action("switch", e.state === "on" ? "turn_off" : "turn_on", { entity_id: e.entity_id })}
-              >
-                ${String(e.attributes.friendly_name || e.entity_id)}
-              </button>`,
+            : e.entity_id.startsWith("button.")
+              ? html`<button
+                  type="button"
+                  ?disabled=${disabled || e.state === "unavailable"}
+                  @click=${() => void this.action("button", "press", { entity_id: e.entity_id })}
+                >
+                  ${String(e.attributes.friendly_name || e.entity_id)}
+                </button>`
+              : html`<button
+                  type="button"
+                  aria-pressed=${String(e.state === "on")}
+                  ?disabled=${disabled || ["unknown", "unavailable"].includes(e.state)}
+                  @click=${() => void this.action("switch", e.state === "on" ? "turn_off" : "turn_on", { entity_id: e.entity_id })}
+                >
+                  ${String(e.attributes.friendly_name || e.entity_id)}
+                </button>`,
         )}${
           this.config.show_maintenance !== false
             ? html`<div class="measurements section">
