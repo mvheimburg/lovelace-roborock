@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — Unreleased
+## 0.1.0 — 2026-11-17
 
 - Add everyday Roborock controls, room selection, registry-based bindings and a visual editor.
 - Add a map surface and a link to the companion's desktop/tablet configuration panel.

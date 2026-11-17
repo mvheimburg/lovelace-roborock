@@ -88,7 +88,7 @@ package-contained; see [API v1](docs/api-v1.md), DESIGN.md and UX-CONTRACT.md.
 No owner's real home is used in demos or screenshots. Saros 20 Sonic hardware
 commands require separate live validation; browser fixtures are not that proof.
 
-Repository metadata, once `gh` is authenticated:
+Repository description and topics are configured. Maintenance command:
 
 ```bash
 gh repo edit mvheimburg/lovelace-roborock --description "Roborock dashboard with maps, room cleaning and dock controls for Home Assistant Lovelace." --add-topic home-assistant --add-topic homeassistant --add-topic hacs --add-topic hacs-dashboard --add-topic lovelace --add-topic lovelace-card --add-topic lovelace-custom-card --add-topic roborock --add-topic robot-vacuum
